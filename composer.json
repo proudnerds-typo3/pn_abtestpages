@@ -1,0 +1,37 @@
+{
+    "name": "proudnerds/pn-abtestpages",
+    "type": "typo3-cms-extension",
+    "description": "Provides simple A/B testing between two full TYPO3 pages: visitors are randomly assigned page A or B and the choice is remembered in a cookie.",
+    "license": "GPL-2.0+",
+    "version": "14.3.0",
+    "authors": [
+        {
+            "name": "IllusionFACTORY",
+            "role": "Original author"
+        },
+        {
+            "name": "Proudnerds",
+            "role": "Maintainer"
+        }
+    ],
+    "require": {
+        "typo3/cms-core": "^14",
+        "typo3/cms-frontend": "^14",
+        "typo3/cms-seo": "^14"
+    },
+    "autoload": {
+        "psr-4": {
+            "Proudnerds\\ABTestPages\\": "Classes"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Proudnerds\\ABTestPages\\Tests\\": "Tests"
+        }
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "pn_abtestpages"
+        }
+    }
+}
