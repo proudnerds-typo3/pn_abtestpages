@@ -1,37 +1,33 @@
 # pn_abtestpages
 
-This extension supports TYPO3 administrators in performing A/B tests. This is useful when a site owner want to measure whether a new version improves or reduces user interaction compared to the current version.
+This extension supports TYPO3 administrators in performing A/B tests. This is useful when a site owner wants to measure whether a new version improves or reduces user interaction compared to the current version.
 
-Page properties get a new field "B Page" where you can provide the alternative page version. If the page is requested by the user, the extension checks wheter there is a B version specified. If this is the case, the version is selected by random. A cookie is set that remembers which version the user got (so there is no flip-flop if the user requests the page repeatedly). Once the cookie expires, the user is back to random at the next request.
+Page properties get a new field "B page" where you can provide the alternative page version. If the page is requested by the user, the extension checks whether there is a B version specified. If this is the case, the version is selected at random. A cookie is set that remembers which version the user got (so there is no flip-flop if the user requests the page repeatedly). Once the cookie expires, the user is back to random at the next request.
 
-Additional header information may be specified both for the original version as well as for the B version. This allows to track version differences in a web analysis tool such as Analytics.
+Every visitor taking part in a test gets a `dataLayer` event with the variant served, so a web analytics tool can tell the variants apart. No editor-entered code is involved, which keeps the page compatible with a hash-based Content Security Policy.
 
 #### Info:
 
 Requires TYPO3 v14.3+. Implemented as a PSR-15 frontend middleware
 (`Proudnerds\ABTestPages\Middleware\AbTestPageResolver`) — no realurl dependency.
 
-#### Screenshot:
+#### Measuring results:
 
-![abtestpages screenshot](https://www.illusion-factory.de/fileadmin/user_upload/abtestpages-images/abtestpages-screen.jpeg)
-
-#### Example for Google Analytics:
-
-In Google Analytics you can different your A and B site with 2 segments.
-
-First you have to add a "Custom Definition" under your property settings.
-Create a "Custom Dimension" with name "Variant A or B" for example. Set "Scope" to "Hit".
-Then create a new advanced segment for your data and give it a segment name. Under advanced conditions add 2 filters.
-
-1. filter: "Page" - "exactly matches" - "/mysite.html"
-2. filter: "Custom Dimensions" (choose your previously created dimension "Variant A or B") - "contains" - "Variant B"
-
-##### Additional Header Information:
+The page pushes this event for visitors taking part in a test (not for crawlers, the Solr
+indexer, or direct visits to page B):
 
 ```javascript
-<script>
-ga('send', 'pageview', { 'dimension1':  'Variant B' });
-</script>
+window.dataLayer.push({
+  event: 'ab_test_view',
+  abTestId: 12,          // uid of page A
+  abTestName: 'Home',    // title of page A, in the default language
+  abTestVariant: 'B'     // 'A' or 'B'
+});
 ```
 
-(dimension1 is the index of your dimension)
+In Google Tag Manager, create a custom event trigger on `ab_test_view` and Data Layer
+variables for `abTestId` and `abTestVariant`, and send them to GA4 as event parameters.
+
+The script is added through the AssetCollector with the `csp` option, so TYPO3 adds its
+sha256 hash to `script-src`. This requires `behavior.useHash: true` in the site's `csp.yaml`;
+TYPO3 does not apply the collected hashes when `useHash` is unset.

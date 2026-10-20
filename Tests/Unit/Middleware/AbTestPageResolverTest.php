@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Proudnerds\ABTestPages\Tests\Unit\Middleware;
 
 use GuzzleHttp\Psr7\ServerRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Proudnerds\ABTestPages\Middleware\AbTestPageResolver;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
-use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Routing\PageArguments;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 
 final class AbTestPageResolverTest extends TestCase
 {
@@ -19,12 +22,12 @@ final class AbTestPageResolverTest extends TestCase
     private const PAGE_B = 20;
 
     private PageRepository&MockObject $pageRepository;
-    private PageRenderer&MockObject $pageRenderer;
+    private AssetCollector $assetCollector;
 
     protected function setUp(): void
     {
         $this->pageRepository = $this->createMock(PageRepository::class);
-        $this->pageRenderer = $this->createMock(PageRenderer::class);
+        $this->assetCollector = new AssetCollector();
     }
 
     /**
@@ -47,9 +50,19 @@ final class AbTestPageResolverTest extends TestCase
 
     private function subject(): AbTestPageResolver
     {
-        return new AbTestPageResolver($this->pageRepository, $this->pageRenderer);
+        return new AbTestPageResolver($this->pageRepository, $this->assetCollector);
     }
 
+    private static function selectedPageId(CapturingRequestHandler $handler): int
+    {
+        $routing = $handler->lastRequest?->getAttribute('routing');
+        self::assertInstanceOf(PageArguments::class, $routing);
+        return $routing->getPageId();
+    }
+
+    /**
+     * @param array<string, string> $cookies
+     */
     private function requestForPageA(array $cookies = [], string $userAgent = 'Mozilla/5.0'): ServerRequestInterface
     {
         return (new ServerRequest('GET', 'https://example.com/page-a'))
@@ -66,20 +79,86 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $response = $this->subject()->process($request, $handler);
 
-        self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
         self::assertFalse($response->hasHeader('Set-Cookie'));
     }
 
-    public function testOtherCrawlerUserAgentsAreAlsoExcluded(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function crawlerUserAgentProvider(): array
+    {
+        return [
+            'Bing' => ['Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)'],
+            'DuckDuckGo' => ['DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)'],
+            'Twitter' => ['Twitterbot/1.0'],
+            'Facebook' => ['facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'],
+            'Slack' => ['Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)'],
+            'Slack without info URL' => ['Slackbot 1.0'],
+            'Baidu' => ['Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)'],
+            'Applebot' => ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)'],
+        ];
+    }
+
+    #[DataProvider('crawlerUserAgentProvider')]
+    public function testCrawlerUserAgentsAreExcluded(string $userAgent): void
     {
         $this->pageRepository->expects(self::never())->method('getPage');
 
-        foreach (['bingbot/2.0', 'DuckDuckBot/1.1', 'Twitterbot/1.0', 'facebookexternalhit/1.1'] as $userAgent) {
-            $request = $this->requestForPageA(userAgent: $userAgent);
-            $handler = new CapturingRequestHandler();
-            $this->subject()->process($request, $handler);
-            self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('routing')->getPageId(), $userAgent);
-        }
+        $handler = new CapturingRequestHandler();
+        $this->subject()->process($this->requestForPageA(userAgent: $userAgent), $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function visitorUserAgentProvider(): array
+    {
+        return [
+            'Cubot phone, underscore' => ['Mozilla/5.0 (Linux; Android 10; CUBOT_X30) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'],
+            'Cubot phone, space' => ['Mozilla/5.0 (Linux; Android 12; Cubot P50) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'],
+            'desktop Chrome' => ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'],
+        ];
+    }
+
+    #[DataProvider('visitorUserAgentProvider')]
+    public function testVisitorUserAgentsTakePartInTheTest(string $userAgent): void
+    {
+        $this->configurePages(['tx_abtestpages_b_percentage' => 100]);
+
+        $handler = new CapturingRequestHandler();
+        $this->subject()->process($this->requestForPageA(userAgent: $userAgent), $handler);
+
+        self::assertSame(self::PAGE_B, self::selectedPageId($handler));
+    }
+
+    public function testAlternativePageUnavailableInTheVisitorsLanguageSkipsTheTest(): void
+    {
+        $this->configurePages(['tx_abtestpages_b_percentage' => 100]);
+        $this->pageRepository->method('getPageOverlay')->willReturnArgument(0);
+        $this->pageRepository->method('isPageSuitableForLanguage')->willReturn(false);
+        $german = new SiteLanguage(1, 'de_DE.UTF-8', new Uri('https://example.com/de/'), ['fallbackType' => 'strict']);
+
+        $handler = new CapturingRequestHandler();
+        $response = $this->subject()->process($this->requestForPageA()->withAttribute('language', $german), $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
+        self::assertFalse($response->hasHeader('Set-Cookie'));
+    }
+
+    public function testSolrIndexingRequestAlwaysGetsPageA(): void
+    {
+        $this->pageRepository->expects(self::never())->method('getPage');
+
+        $request = $this->requestForPageA(userAgent: '')
+            ->withAttribute('solr.indexingInstructions', new \stdClass());
+        $handler = new CapturingRequestHandler();
+        $response = $this->subject()->process($request, $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
+        self::assertFalse($response->hasHeader('Set-Cookie'));
     }
 
     public function testPageWithoutBVariantPassesThrough(): void
@@ -91,7 +170,7 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $response = $this->subject()->process($this->requestForPageA(), $handler);
 
-        self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
         self::assertFalse($response->hasHeader('Set-Cookie'));
         self::assertFalse($response->hasHeader('Cache-Control'));
     }
@@ -106,7 +185,7 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $response = $this->subject()->process($this->requestForPageA(), $handler);
 
-        self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
         self::assertFalse($response->hasHeader('Set-Cookie'));
     }
 
@@ -118,7 +197,7 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $response = $this->subject()->process($request, $handler);
 
-        self::assertSame(self::PAGE_B, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_B, self::selectedPageId($handler));
         self::assertFalse($response->hasHeader('Set-Cookie'));
     }
 
@@ -132,7 +211,7 @@ final class AbTestPageResolverTest extends TestCase
         $response = $this->subject()->process($request, $handler);
 
         // 0% chance of B, so the fresh (re-rolled) selection deterministically lands on A.
-        self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
         self::assertTrue($response->hasHeader('Set-Cookie'));
     }
 
@@ -143,7 +222,7 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $response = $this->subject()->process($this->requestForPageA(), $handler);
 
-        self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
         $setCookie = $response->getHeaderLine('Set-Cookie');
         self::assertStringContainsString('abtestpages-' . self::PAGE_A . '=' . self::PAGE_A, $setCookie);
         self::assertStringContainsString('Max-Age=3600', $setCookie);
@@ -158,7 +237,7 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $response = $this->subject()->process($this->requestForPageA(), $handler);
 
-        self::assertSame(self::PAGE_B, $handler->lastRequest->getAttribute('routing')->getPageId());
+        self::assertSame(self::PAGE_B, self::selectedPageId($handler));
         self::assertStringContainsString('abtestpages-' . self::PAGE_A . '=' . self::PAGE_B, $response->getHeaderLine('Set-Cookie'));
     }
 
@@ -169,7 +248,7 @@ final class AbTestPageResolverTest extends TestCase
         $handler = new CapturingRequestHandler();
         $this->subject()->process($this->requestForPageA(), $handler);
 
-        self::assertSame(self::PAGE_A, $handler->lastRequest->getAttribute('abtestpages.originalPageId'));
+        self::assertSame(self::PAGE_A, $handler->lastRequest?->getAttribute('abtestpages.originalPageId'));
     }
 
     public function testResponseIsMarkedUncacheableByShareCachesWhenTestIsActive(): void
@@ -201,17 +280,29 @@ final class AbTestPageResolverTest extends TestCase
         self::assertStringContainsString('Secure', $response->getHeaderLine('Set-Cookie'));
     }
 
-    public function testAdditionalHeaderDataOfSelectedVariantIsInjected(): void
+    public function testMeasurementScriptReportsTheServedVariantAndIsHashedForCsp(): void
     {
-        $this->configurePages(
-            ['tx_abtestpages_b_percentage' => 100],
-            ['tx_abtestpages_header' => '<meta name="variant" content="B">'],
+        $this->configurePages(['tx_abtestpages_b_percentage' => 100, 'title' => 'Home </script>']);
+
+        $handler = new CapturingRequestHandler();
+        $this->subject()->process($this->requestForPageA(), $handler);
+
+        $script = $this->assetCollector->getInlineJavaScripts()['pn-abtestpages'] ?? [];
+        self::assertSame(['csp' => true], $script['options'] ?? null);
+        self::assertSame(
+            'window.dataLayer = window.dataLayer || [];window.dataLayer.push('
+            . '{"event":"ab_test_view","abTestId":10,"abTestName":"Home \\u003C\\/script\\u003E","abTestVariant":"B"});',
+            $script['source'] ?? null,
         );
+        self::assertSame('B', $handler->lastRequest?->getAttribute('abtestpages.variant'));
+    }
 
-        $this->pageRenderer->expects(self::once())
-            ->method('addHeaderData')
-            ->with('<meta name="variant" content="B">');
+    public function testCrawlerGetsNoMeasurementScript(): void
+    {
+        $this->configurePages();
 
-        $this->subject()->process($this->requestForPageA(), new CapturingRequestHandler());
+        $this->subject()->process($this->requestForPageA(userAgent: 'Googlebot/2.1'), new CapturingRequestHandler());
+
+        self::assertSame([], $this->assetCollector->getInlineJavaScripts());
     }
 }

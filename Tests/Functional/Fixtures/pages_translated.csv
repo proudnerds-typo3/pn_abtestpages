@@ -1,0 +1,6 @@
+"pages"
+,"uid","pid","title","slug","doktype","hidden","sys_language_uid","l10n_parent","tx_abtestpages_b_id","tx_abtestpages_b_percentage"
+,20,1,"Seite A","/page-a",1,0,1,2,3,100
+,21,1,"Plain Seite","/plain-page",1,0,1,6,0,50
+,22,1,"Seite B2","/page-b2",1,0,1,11,0,50
+,23,1,"Seite A2","/page-a2",1,0,1,10,0,0

@@ -1,0 +1,13 @@
+"pages"
+,"uid","pid","title","slug","doktype","hidden","no_index","no_search","sys_language_uid","l10n_parent","tx_abtestpages_b_id","tx_abtestpages_b_percentage"
+,1,0,"Root","/",1,0,0,0,0,0,0,50
+,2,1,"Page A","/page-a",1,0,0,0,0,0,3,100
+,3,1,"Page B","/page-b",1,0,0,0,0,0,0,50
+,4,1,"Hidden tester","/hidden-tester",1,1,0,0,0,0,5,50
+,5,1,"Variant of hidden tester","/variant-of-hidden-tester",1,0,0,0,0,0,0,50
+,6,1,"Plain page","/plain-page",1,0,0,0,0,0,0,50
+,7,1,"Translated row","/translated-row",1,0,0,0,1,6,6,50
+,8,1,"Tester of no_index variant","/tester-of-noindex-variant",1,0,0,0,0,0,9,0
+,9,1,"No_index variant","/noindex-variant",1,0,1,0,0,0,0,50
+,10,1,"Page A2","/page-a2",1,0,0,0,0,0,11,100
+,11,1,"Page B2","/page-b2",1,0,0,0,0,0,0,50

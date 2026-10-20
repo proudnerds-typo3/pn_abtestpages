@@ -6,7 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased] — 2026-10-20
+
+### Added
+- **Backend manual** via `proudnerds/pn-backend-manual` (now a dependency). `Resources/Private/Manual/AbTestManual.md` explains how to set up, measure and stop a test, and is registered as the dashboard widget `pnAbtestpagesManual` in `Configuration/Services.yaml`. The A/B fields are exclude fields, so the manual is meant for administrators; grant the widget to a group only together with those fields. Update `version` and `date` in the front matter on every change.
+- `Classes/Hooks/ExcludeVariantPageFromSearch.php` (registered in the new `ext_localconf.php`) — choosing a page as "B" page sets `no_search = 1` on it, so it no longer shows up in Solr as a duplicate of A. Deliberately not `no_index`: B is rendered under A's URL, and B's robots noindex would then be served on A's URL. The flag is not reset when the test stops; the manual says so.
+- `Classes/Domain/Repository/AbTestPageRepository.php` — finds the visible default-language page that tests a given page as its "B" page.
+- `Tests/Functional/AbTestPagesTest.php` — frontend sub-requests against a real site for the canonical in all three cases, the variant swap, the no_index guard, and the DataHandler hook. Replaces `Tests/Unit/EventListener/CanonicalUrlEventListenerTest.php`, which could only cover the guards.
+- `Classes/Middleware/AbTestPageResolver.php` — visitors taking part in a test get a `dataLayer.push({event: 'ab_test_view', abTestId, abTestName, abTestVariant})`, added through the AssetCollector with the `csp` option so TYPO3 puts its sha256 hash in `script-src`. Test name and id come from page A; the title is JSON-encoded with `JSON_HEX_*`, so a title cannot close the script tag.
+- `Classes/EventListener/PageCacheIdentifierEventListener.php` — a page served as part of a test gets its own page cache entry (`BeforePageCacheIdentifierIsHashedEvent`).
+- `Tests/Functional/MeasurementScriptTest.php` — runs with an enforced hash-based CSP and a database page cache: the script hash is in the CSP header on both cache miss and hit, there is no nonce, and a crawler or direct visit does not strip the script from served variants.
+
+### Removed
+- **Breaking:** the `tx_abtestpages_header` field (TCA, `ext_tables.sql`, labels). It put editor-entered HTML unchecked into `<head>`: an inline script there has no nonce or hash, so a CSP blocks it, and any editor with access to the field could add arbitrary scripts. Replaced by the automatic `dataLayer` event above. The database analyzer offers to drop the column. It was empty in the seed; check an installation for filled values before dropping it there.
+- `README.md` — the Universal Analytics `ga()` example (UA was shut down in 2023) and the screenshot hot-linked from illusion-factory.de, which still showed the removed field.
+
+### Fixed
+- `Classes/Middleware/AbTestPageResolver.php` — EXT:solr indexes through an in-process frontend request without User-Agent or cookies, so the Solr document of page A got B's content at random. Requests carrying the `solr.indexingInstructions` attribute now always get page A.
+- `Classes/EventListener/CanonicalUrlEventListener.php` — page B opened on its own URL now also gets a canonical pointing at A; before, it was an indexable duplicate of A. The listener no longer adds a canonical to a page with `no_index` or `disableCanonical`.
+- The page cache entry of page B was shared between visitors served B under A's URL and direct visits to B. Whichever came first after a cache flush won: after one direct visit, every visitor served variant B got B without its measurement code. The same held for page A and crawler visits. Fixed by the cache identifier listener above.
+- Visitors of a translated page A were sent to an untranslated page B and got a 404, for every visitor drawn into B when the language has no fallback. The middleware now checks B with `PageRepository::isPageSuitableForLanguage()`, the same check the core uses for links and menus. The context's language aspect is only set after this middleware (by `PageInformationFactory`), so the language comes from the request's `language` attribute.
+- `Configuration/TCA/Overrides/pages.php` — `tx_abtestpages_cookie_time` had no TCA `default`, so FormEngine started new pages on the first option, 1 month, while SQL, README and manual said 1 day. Now `'default' => 86400`.
+- Crawler detection no longer treats every "bot" substring as a crawler: phone models such as "CUBOT_X30" or "Cubot P50" always got A and no measurement script. "bot" now has to be followed by a separator, `/`, a version or the end; a `+http://` info URL also counts.
+
+### Changed
+- `Configuration/TCA/Overrides/pages.php` — the three test fields are `l10n_mode => 'exclude'`. The middleware always uses the default-language settings, so in a translation the fields were shown but had no effect.
+- Labels: "Site B" is "B page", "AB Test Settings" is "A/B test settings", Dutch "Cookie levensduur" is "Cookielevensduur". The option key `cookie_12_day` ("1/2 day") is `cookie_12_hours` ("12 hours"); the stored value, 43200, is unchanged.
+- `README.md` — typos ("wheter", "want", "by random").
+
 ## [Unreleased] — 2026-07-10
+
+> **Current state, corrected 2026-10-20.** Some names below have changed since: the package is `proudnerds/pn-abtestpages` and the middleware `proudnerds/pn-abtestpages/select-page`; there is no `ext_emconf.php` (composer mode only); the PHPUnit configuration is the root `phpunit.xml` (unit) and `phpunit.functional.xml`, run through `ddev ci`.
 
 TYPO3 14.3 upgrade. This extension had been dormant since 2017 (TYPO3 7.6–8.7, alpha quality) and was taken over and rewritten to run on TYPO3 v14.3 / PHP 8.4. The original mechanism relied on a TYPO3 hook (`checkAlternativeIdMethods-PostProc`) removed years ago, and on the long-dead `realurl` extension to resolve the root page ID — both are gone. TYPO3's core routing now resolves the real, final page ID before any custom middleware runs, so the realurl-based workaround was obsolete and dropped rather than ported.
 

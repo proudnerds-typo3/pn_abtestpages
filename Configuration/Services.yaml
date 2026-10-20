@@ -6,3 +6,20 @@ services:
 
   Proudnerds\ABTestPages\:
     resource: "../Classes/*"
+
+  pn_abtestpages.manual:
+    class: 'ProudNerds\PnBackendManual\Widgets\ManualWidget'
+    arguments:
+      $options:
+        file: 'EXT:pn_abtestpages/Resources/Private/Manual/AbTestManual.md'
+        numbered: true
+        contentsDepth: 2
+    tags:
+      - name: dashboard.widget
+        identifier: 'pnAbtestpagesManual'
+        groupNames: 'documentation'
+        title: 'LLL:EXT:pn_abtestpages/Resources/Private/Language/locallang_be.xlf:manual.title'
+        description: 'LLL:EXT:pn_abtestpages/Resources/Private/Language/locallang_be.xlf:manual.description'
+        iconIdentifier: 'content-book'
+        height: 'medium'
+        width: 'medium'

@@ -4,7 +4,7 @@
 		<header/>
 		<body>
 		<trans-unit id="pages.tx_abtestpages_b_id">
-			<source>Site B</source>
+			<source>B page</source>
 		</trans-unit>
 		<trans-unit id="pages.tx_abtestpages_b_percentage">
 			<source>Percentage shown as B</source>
@@ -12,11 +12,8 @@
 		<trans-unit id="pages.tx_abtestpages_cookie_time">
 			<source>Cookie Lifetime</source>
 		</trans-unit>
-		<trans-unit id="pages.tx_abtestpages_header">
-			<source>Additional Header Information</source>
-		</trans-unit>
 		<trans-unit id="palette_title">
-			<source>AB Test Settings</source>
+			<source>A/B test settings</source>
 		</trans-unit>
 		<trans-unit id="cookie_1_month">
 			<source>1 month</source>
@@ -27,8 +24,8 @@
 		<trans-unit id="cookie_1_day">
 			<source>1 day</source>
 		</trans-unit>
-		<trans-unit id="cookie_12_day">
-			<source>1/2 day</source>
+		<trans-unit id="cookie_12_hours">
+			<source>12 hours</source>
 		</trans-unit>
 		<trans-unit id="cookie_1_hour">
 			<source>1 hour</source>
