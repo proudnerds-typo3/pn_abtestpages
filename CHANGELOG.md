@@ -7,6 +7,11 @@ Versions follow the TYPO3 core version the extension targets.
 
 ## [Unreleased]
 
+## [14.3.2] – 2026-11-25
+
+### Changed
+- `composer.json` sets `extra.typo3/cms.skip-ter-packagist-import`, so Packagist does not import a TER package under this extension key. Indentation is now 2 spaces.
+
 ## [14.3.1] – 2026-11-25
 
 ### Added
