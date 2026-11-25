@@ -1,0 +1,7 @@
+"pages"
+,"uid","pid","title","slug","doktype","is_siteroot","hidden","sys_language_uid","l10n_parent","tx_abtestpages_b_id","tx_abtestpages_b_percentage"
+,20,1,"Tester of folder","/tester-of-folder",1,0,0,0,0,21,100
+,21,1,"Folder variant","/folder-variant",254,0,0,0,0,0,50
+,22,1,"Tester of other site","/tester-of-other-site",1,0,0,0,0,31,100
+,30,0,"Other root","/",1,1,0,0,0,0,50
+,31,30,"Other site variant","/other-site-variant",1,0,0,0,0,0,50

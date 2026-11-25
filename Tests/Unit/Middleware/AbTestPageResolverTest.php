@@ -13,8 +13,11 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Http\Uri;
 use TYPO3\CMS\Core\Page\AssetCollector;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Routing\PageArguments;
+use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Site\SiteFinder;
 
 final class AbTestPageResolverTest extends TestCase
 {
@@ -23,11 +26,21 @@ final class AbTestPageResolverTest extends TestCase
 
     private PageRepository&Stub $pageRepository;
     private AssetCollector $assetCollector;
+    private SiteFinder&Stub $siteFinder;
 
     protected function setUp(): void
     {
         $this->pageRepository = $this->createStub(PageRepository::class);
         $this->assetCollector = new AssetCollector();
+        $this->siteFinder = $this->createStub(SiteFinder::class);
+        $this->siteFinder->method('getSiteByPageId')->willReturn($this->site('main'));
+    }
+
+    private function site(string $identifier): Site&Stub
+    {
+        $site = $this->createStub(Site::class);
+        $site->method('getIdentifier')->willReturn($identifier);
+        return $site;
     }
 
     private function expectNoPageLookup(): void
@@ -44,7 +57,7 @@ final class AbTestPageResolverTest extends TestCase
     private function configurePages(array $pageAOverrides = [], array $pageBOverrides = []): void
     {
         $pageA = array_merge(['uid' => self::PAGE_A, 'tx_abtestpages_b_id' => self::PAGE_B], $pageAOverrides);
-        $pageB = array_merge(['uid' => self::PAGE_B, 'tx_abtestpages_b_id' => 0], $pageBOverrides);
+        $pageB = array_merge(['uid' => self::PAGE_B, 'doktype' => PageRepository::DOKTYPE_DEFAULT, 'tx_abtestpages_b_id' => 0], $pageBOverrides);
 
         $this->pageRepository->method('getPage')->willReturnCallback(
             static fn(int $uid): array => match ($uid) {
@@ -57,7 +70,7 @@ final class AbTestPageResolverTest extends TestCase
 
     private function subject(): AbTestPageResolver
     {
-        return new AbTestPageResolver($this->pageRepository, $this->assetCollector);
+        return new AbTestPageResolver($this->pageRepository, $this->assetCollector, $this->siteFinder);
     }
 
     private static function selectedPageId(CapturingRequestHandler $handler): int
@@ -70,10 +83,11 @@ final class AbTestPageResolverTest extends TestCase
     /**
      * @param array<string, string> $cookies
      */
-    private function requestForPageA(array $cookies = [], string $userAgent = 'Mozilla/5.0'): ServerRequestInterface
+    private function requestForPageA(array $cookies = [], string $userAgent = 'Mozilla/5.0', string $pageType = '0'): ServerRequestInterface
     {
         return (new ServerRequest('GET', 'https://example.com/page-a'))
-            ->withAttribute('routing', new PageArguments(self::PAGE_A, '0', []))
+            ->withAttribute('routing', new PageArguments(self::PAGE_A, $pageType, []))
+            ->withAttribute('site', $this->site('main'))
             ->withHeader('User-Agent', $userAgent)
             ->withCookieParams($cookies);
     }
@@ -311,5 +325,66 @@ final class AbTestPageResolverTest extends TestCase
         $this->subject()->process($this->requestForPageA(userAgent: 'Googlebot/2.1'), new CapturingRequestHandler());
 
         self::assertSame([], $this->assetCollector->getInlineJavaScripts());
+    }
+
+    public function testOtherPageTypesAreNotPartOfTheTest(): void
+    {
+        $this->expectNoPageLookup();
+
+        $handler = new CapturingRequestHandler();
+        $response = $this->subject()->process($this->requestForPageA(pageType: '1533906435'), $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
+        self::assertFalse($response->hasHeader('Set-Cookie'));
+        self::assertSame([], $this->assetCollector->getInlineJavaScripts());
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function nonStandardDoktypeProvider(): array
+    {
+        return [
+            'shortcut' => [PageRepository::DOKTYPE_SHORTCUT],
+            'external link' => [PageRepository::DOKTYPE_LINK],
+            'folder' => [PageRepository::DOKTYPE_SYSFOLDER],
+        ];
+    }
+
+    #[DataProvider('nonStandardDoktypeProvider')]
+    public function testAlternativePageThatIsNotAStandardPageSkipsTheTest(int $doktype): void
+    {
+        $this->configurePages(['tx_abtestpages_b_percentage' => 100], ['doktype' => $doktype]);
+
+        $handler = new CapturingRequestHandler();
+        $response = $this->subject()->process($this->requestForPageA(), $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
+        self::assertFalse($response->hasHeader('Set-Cookie'));
+    }
+
+    public function testAlternativePageInAnotherSiteSkipsTheTest(): void
+    {
+        $this->configurePages(['tx_abtestpages_b_percentage' => 100]);
+        $this->siteFinder = $this->createStub(SiteFinder::class);
+        $this->siteFinder->method('getSiteByPageId')->willReturn($this->site('other'));
+
+        $handler = new CapturingRequestHandler();
+        $response = $this->subject()->process($this->requestForPageA(), $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
+        self::assertFalse($response->hasHeader('Set-Cookie'));
+    }
+
+    public function testAlternativePageOutsideAnySiteSkipsTheTest(): void
+    {
+        $this->configurePages(['tx_abtestpages_b_percentage' => 100]);
+        $this->siteFinder = $this->createStub(SiteFinder::class);
+        $this->siteFinder->method('getSiteByPageId')->willThrowException(new SiteNotFoundException('none', 1));
+
+        $handler = new CapturingRequestHandler();
+        $this->subject()->process($this->requestForPageA(), $handler);
+
+        self::assertSame(self::PAGE_A, self::selectedPageId($handler));
     }
 }

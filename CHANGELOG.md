@@ -7,6 +7,16 @@ Versions follow the TYPO3 core version the extension targets.
 
 ## [Unreleased]
 
+## [14.3.1] – 2026-11-25
+
+### Added
+- `ext_tables.sql` — index on `pages.tx_abtestpages_b_id`. `CanonicalUrlEventListener` looks up the page testing the rendered page on every uncached render, which was a full scan of `pages`. Run the database analyzer to add it.
+
+### Fixed
+- Visitors drawn into B got a 404 on every URL of A with a cHash (pagination, plugin parameters, route enhancers such as news detail pages). `PageArgumentValidator` checks the cHash against the page id, and the cHash in the URL was calculated for A. The middleware now runs after `typo3/cms-frontend/page-argument-validator` instead of before it.
+- B is only served when it is a standard page (`doktype` 1) in the same site as A. A folder as B gave a 404, a shortcut redirected to its target, and a page from another site was rendered with the site configuration of A.
+- The test only runs for page type 0. Other page types of A, such as the XML sitemap on a root page or JSON/AJAX types, got the variant swap, a `Set-Cookie` and `no-store`.
+
 ## [14.3.0] – 2026-11-25
 
 First release as a separate package. The entries below describe the work done

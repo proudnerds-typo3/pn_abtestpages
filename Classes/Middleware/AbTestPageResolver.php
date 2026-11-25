@@ -10,17 +10,19 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TYPO3\CMS\Core\Context\LanguageAspectFactory;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Routing\PageArguments;
+use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Site\SiteFinder;
 
 /**
  * Randomly serves either the requested page ("A") or its configured
  * alternative ("B") for A/B testing, remembering the choice in a cookie.
  *
- * Runs after TYPO3's own page-resolver middleware, so `$request`'s
- * "routing" attribute already carries the real, final page ID for this
- * request (no realurl/rootpage lookup is needed any more).
+ * Runs after TYPO3's page-resolver and page-argument-validator middlewares, so `$request`'s
+ * "routing" attribute already carries the real, final page ID and validated arguments.
  */
 final class AbTestPageResolver implements MiddlewareInterface
 {
@@ -34,6 +36,7 @@ final class AbTestPageResolver implements MiddlewareInterface
     public function __construct(
         private readonly PageRepository $pageRepository,
         private readonly AssetCollector $assetCollector,
+        private readonly SiteFinder $siteFinder,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -50,7 +53,8 @@ final class AbTestPageResolver implements MiddlewareInterface
         }
 
         $routing = $request->getAttribute('routing');
-        if (!$routing instanceof PageArguments) {
+        // Other page types (XML sitemap, JSON/AJAX endpoints) are not part of the test.
+        if (!$routing instanceof PageArguments || (int)$routing->getPageType() !== 0) {
             return $handler->handle($request);
         }
 
@@ -63,9 +67,14 @@ final class AbTestPageResolver implements MiddlewareInterface
         }
 
         $alternativePage = $this->pageRepository->getPage($alternativePageId);
-        // B is deleted, hidden, access-restricted, or not available in the visitor's language
-        // (which would otherwise 404 for every visitor drawn into B).
-        if ($alternativePage === [] || !$this->isAvailableInRequestLanguage($alternativePage, $request)) {
+        // B is deleted, hidden, access-restricted, not a standard page (a folder 404s, a shortcut
+        // redirects), in another site (it would render with A's site configuration), or not
+        // available in the visitor's language (which would 404 for every visitor drawn into B).
+        if ($alternativePage === []
+            || (int)($alternativePage['doktype'] ?? 0) !== PageRepository::DOKTYPE_DEFAULT
+            || !$this->isInRequestSite($alternativePageId, $request)
+            || !$this->isAvailableInRequestLanguage($alternativePage, $request)
+        ) {
             return $handler->handle($request);
         }
 
@@ -134,6 +143,19 @@ final class AbTestPageResolver implements MiddlewareInterface
         }
 
         return $response;
+    }
+
+    private function isInRequestSite(int $pageId, ServerRequestInterface $request): bool
+    {
+        $site = $request->getAttribute('site');
+        if (!$site instanceof Site) {
+            return false;
+        }
+        try {
+            return $this->siteFinder->getSiteByPageId($pageId)->getIdentifier() === $site->getIdentifier();
+        } catch (SiteNotFoundException) {
+            return false;
+        }
     }
 
     /**

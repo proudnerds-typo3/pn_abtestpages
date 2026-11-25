@@ -1,6 +1,6 @@
 ---
-version: '1.3'
-date: '2026-10-20'
+version: '1.4'
+date: '2026-11-25'
 ---
 
 # A/B-testen
@@ -21,7 +21,8 @@ hetzelfde adres. Zo meet je in je statistieken welke versie beter werkt.
   het adres van pagina B vindt, telt alleen pagina A.
 - De zoekfunctie van de website toont alleen pagina A, met de inhoud van pagina A.
 - Is pagina B verborgen, verwijderd of afgeschermd, dan loopt de test niet en ziet
-  iedereen pagina A.
+  iedereen pagina A. Dat geldt ook als pagina B geen standaardpagina is (bijvoorbeeld een
+  map, snelkoppeling of externe link) of in een andere website staat dan pagina A.
 - De test loopt ook op de vertalingen van pagina A, met de instellingen van de
   standaardtaal; in een vertaling kun je ze niet apart instellen. Is pagina B niet
   vertaald, dan zien bezoekers van die taal pagina A. Alleen als de taal is ingesteld

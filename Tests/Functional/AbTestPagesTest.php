@@ -14,6 +14,8 @@ use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
+use TYPO3\CMS\Frontend\Page\CacheHashCalculator;
 use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
 use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
@@ -79,6 +81,49 @@ final class AbTestPagesTest extends FunctionalTestCase
         $html = (string)$this->executeFrontendSubRequest(new InternalRequest('https://example.com/page-a'))->getBody();
 
         self::assertStringContainsString('Page B', $html);
+    }
+
+    public function testVariantIsServedOnAUrlWithACacheHashCalculatedForA(): void
+    {
+        $this->setUpFrontendSite();
+        $cHash = $this->get(CacheHashCalculator::class)
+            ->generateForParameters(HttpUtility::buildQueryString(['id' => 2, 'foo' => 'bar']));
+
+        $response = $this->executeFrontendSubRequest(new InternalRequest('https://example.com/page-a?foo=bar&cHash=' . $cHash));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('Page B', (string)$response->getBody());
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function invalidVariantProvider(): array
+    {
+        return [
+            'B is a folder' => ['/tester-of-folder', 'Tester of folder'],
+            'B is in another site' => ['/tester-of-other-site', 'Tester of other site'],
+        ];
+    }
+
+    #[DataProvider('invalidVariantProvider')]
+    public function testInvalidVariantServesPageA(string $path, string $expectedTitle): void
+    {
+        $this->importCSVDataSet(self::FIXTURES . 'pages_invalid_variants.csv');
+        $this->setUpFrontendSite();
+        $this->get(SiteWriter::class)->write('other', [
+            'rootPageId' => 30,
+            'base' => 'https://other.example.com/',
+            'languages' => [
+                ['languageId' => 0, 'title' => 'English', 'locale' => 'en_US.UTF-8', 'base' => '/'],
+            ],
+        ]);
+
+        $response = $this->executeFrontendSubRequest(new InternalRequest('https://example.com' . $path));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString($expectedTitle, (string)$response->getBody());
+        self::assertSame('', $response->getHeaderLine('Set-Cookie'));
     }
 
     public function testVariantWithNoIndexGetsNoCanonical(): void
