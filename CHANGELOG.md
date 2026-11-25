@@ -3,10 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+Versions follow the TYPO3 core version the extension targets.
 
----
+## [Unreleased]
 
-## [Unreleased] — 2026-10-20
+## [14.3.0] – 2026-11-25
+
+First release as a separate package. The entries below describe the work done
+while the extension lived in the typo3-seed installation.
+
+### Changed
+- Unit tests use a stub for `PageRepository` unless a test sets an expectation, so they run without notices on PHPUnit 13.
+
+## Development in typo3-seed — 2026-10-20
 
 ### Added
 - **Backend manual** via `proudnerds/pn-backend-manual` (now a dependency). `Resources/Private/Manual/AbTestManual.md` explains how to set up, measure and stop a test, and is registered as the dashboard widget `pnAbtestpagesManual` in `Configuration/Services.yaml`. The A/B fields are exclude fields, so the manual is meant for administrators; grant the widget to a group only together with those fields. Update `version` and `date` in the front matter on every change.
@@ -34,7 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Labels: "Site B" is "B page", "AB Test Settings" is "A/B test settings", Dutch "Cookie levensduur" is "Cookielevensduur". The option key `cookie_12_day` ("1/2 day") is `cookie_12_hours` ("12 hours"); the stored value, 43200, is unchanged.
 - `README.md` — typos ("wheter", "want", "by random").
 
-## [Unreleased] — 2026-07-10
+## Development in typo3-seed — 2026-07-10
 
 > **Current state, corrected 2026-10-20.** Some names below have changed since: the package is `proudnerds/pn-abtestpages` and the middleware `proudnerds/pn-abtestpages/select-page`; there is no `ext_emconf.php` (composer mode only); the PHPUnit configuration is the root `phpunit.xml` (unit) and `phpunit.functional.xml`, run through `ddev ci`.
 
@@ -69,3 +78,6 @@ TYPO3 14.3 upgrade. This extension had been dormant since 2017 (TYPO3 7.6–8.7,
 
 ### Not addressed
 - No configurable exclusion list for the crawler pattern (it's a hardcoded regex) and no admin UI showing current split counts — flagged as possible nice-to-haves, not implemented.
+
+[Unreleased]: https://github.com/proudnerds-typo3/pn_abtestpages/compare/14.3.0...HEAD
+[14.3.0]: https://github.com/proudnerds-typo3/pn_abtestpages/releases/tag/14.3.0

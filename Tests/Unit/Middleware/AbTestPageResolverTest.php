@@ -6,7 +6,7 @@ namespace Proudnerds\ABTestPages\Tests\Unit\Middleware;
 
 use GuzzleHttp\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Proudnerds\ABTestPages\Middleware\AbTestPageResolver;
 use Psr\Http\Message\ServerRequestInterface;
@@ -21,13 +21,20 @@ final class AbTestPageResolverTest extends TestCase
     private const PAGE_A = 10;
     private const PAGE_B = 20;
 
-    private PageRepository&MockObject $pageRepository;
+    private PageRepository&Stub $pageRepository;
     private AssetCollector $assetCollector;
 
     protected function setUp(): void
     {
-        $this->pageRepository = $this->createMock(PageRepository::class);
+        $this->pageRepository = $this->createStub(PageRepository::class);
         $this->assetCollector = new AssetCollector();
+    }
+
+    private function expectNoPageLookup(): void
+    {
+        $pageRepository = $this->createMock(PageRepository::class);
+        $pageRepository->expects(self::never())->method('getPage');
+        $this->pageRepository = $pageRepository;
     }
 
     /**
@@ -73,7 +80,7 @@ final class AbTestPageResolverTest extends TestCase
 
     public function testCrawlerRequestBypassesSplitEntirely(): void
     {
-        $this->pageRepository->expects(self::never())->method('getPage');
+        $this->expectNoPageLookup();
 
         $request = $this->requestForPageA(userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
         $handler = new CapturingRequestHandler();
@@ -103,7 +110,7 @@ final class AbTestPageResolverTest extends TestCase
     #[DataProvider('crawlerUserAgentProvider')]
     public function testCrawlerUserAgentsAreExcluded(string $userAgent): void
     {
-        $this->pageRepository->expects(self::never())->method('getPage');
+        $this->expectNoPageLookup();
 
         $handler = new CapturingRequestHandler();
         $this->subject()->process($this->requestForPageA(userAgent: $userAgent), $handler);
@@ -150,7 +157,7 @@ final class AbTestPageResolverTest extends TestCase
 
     public function testSolrIndexingRequestAlwaysGetsPageA(): void
     {
-        $this->pageRepository->expects(self::never())->method('getPage');
+        $this->expectNoPageLookup();
 
         $request = $this->requestForPageA(userAgent: '')
             ->withAttribute('solr.indexingInstructions', new \stdClass());

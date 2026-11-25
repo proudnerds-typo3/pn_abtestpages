@@ -2,23 +2,36 @@
     "name": "proudnerds/pn-abtestpages",
     "type": "typo3-cms-extension",
     "description": "Provides simple A/B testing between two full TYPO3 pages: visitors are randomly assigned page A or B and the choice is remembered in a cookie.",
-    "license": "GPL-2.0+",
-    "version": "14.3.0",
+    "keywords": [
+        "TYPO3 CMS",
+        "AB testing",
+        "split test"
+    ],
+    "homepage": "https://github.com/proudnerds-typo3/pn_abtestpages",
+    "license": "GPL-2.0-or-later",
     "authors": [
         {
             "name": "IllusionFACTORY",
             "role": "Original author"
         },
         {
-            "name": "Proudnerds",
-            "role": "Maintainer"
+            "name": "Proud Nerds",
+            "role": "Maintainer",
+            "homepage": "https://www.proudnerds.com/"
         }
     ],
+    "support": {
+        "issues": "https://github.com/proudnerds-typo3/pn_abtestpages/issues",
+        "source": "https://github.com/proudnerds-typo3/pn_abtestpages"
+    },
     "require": {
+        "proudnerds/pn-backend-manual": "^1.2",
         "typo3/cms-core": "^14.3",
         "typo3/cms-frontend": "^14.3",
-        "proudnerds/pn-backend-manual": "^1.2",
         "typo3/cms-seo": "^14.3"
+    },
+    "require-dev": {
+        "typo3/testing-framework": "^9.7"
     },
     "autoload": {
         "psr-4": {
@@ -30,9 +43,23 @@
             "Proudnerds\\ABTestPages\\Tests\\": "Tests"
         }
     },
+    "config": {
+        "allow-plugins": {
+            "typo3/class-alias-loader": true,
+            "typo3/cms-composer-installers": true
+        },
+        "bin-dir": ".Build/bin",
+        "sort-packages": true,
+        "vendor-dir": ".Build/vendor"
+    },
     "extra": {
         "typo3/cms": {
-            "extension-key": "pn_abtestpages"
+            "extension-key": "pn_abtestpages",
+            "version": "14.3.0",
+            "Package": {
+                "providesPackages": {}
+            },
+            "web-dir": ".Build/public"
         }
     }
 }

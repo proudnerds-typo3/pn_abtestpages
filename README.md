@@ -31,3 +31,24 @@ variables for `abTestId` and `abTestVariant`, and send them to GA4 as event para
 The script is added through the AssetCollector with the `csp` option, so TYPO3 adds its
 sha256 hash to `script-src`. This requires `behavior.useHash: true` in the site's `csp.yaml`;
 TYPO3 does not apply the collected hashes when `useHash` is unset.
+
+#### Installation:
+
+```bash
+composer require proudnerds/pn-abtestpages
+```
+
+Update the database schema afterwards (**Analyze Database Structure** in the Install Tool, or
+`typo3 database:updateschema`).
+
+#### Development:
+
+```bash
+composer install
+.Build/bin/phpunit -c phpunit.xml             # unit tests
+.Build/bin/phpunit -c phpunit.functional.xml  # functional tests, SQLite
+```
+
+#### License:
+
+GPL-2.0-or-later, see [LICENSE](LICENSE).
